@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+<title>Ink Auto Trace Lab — Exact Ink Sketchbook Pen</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;min-height:100%;background:#f4f1eb;color:#2a2620;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+body{padding:10px}.app{max-width:980px;margin:0 auto;display:grid;gap:10px}.card{background:#fff;border:1px solid #ded8cc;border-radius:14px;padding:12px}
+.top{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}h1{font-size:17px;margin:0;font-weight:700}.tag{font-size:11px;color:#7e7668;background:#f6f2eb;padding:5px 8px;border-radius:999px}
+.controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:9px}button,label.file{border:1px solid #d7d0c3;background:#fff;color:#2a2620;border-radius:9px;padding:9px 12px;font-size:13px;cursor:pointer}button.primary{background:#2a2620;color:#fff;border-color:#2a2620}button:disabled{opacity:.45;cursor:default}input[type=file]{display:none}
+.slider{display:flex;align-items:center;gap:7px;font-size:12px;color:#6c6458}.slider input{width:108px}.stage{display:grid;grid-template-columns:210px 1fr;gap:10px;align-items:start}.refbox{background:#fbfaf7;border:1px solid #e5dfd3;border-radius:12px;padding:8px;min-height:120px}.refbox img{width:100%;height:auto;display:none;border-radius:8px;background:#fff}.canvasbox{position:relative;background:#fff;border:1px solid #ded8cc;border-radius:12px;overflow:hidden;min-height:520px;display:flex;align-items:center;justify-content:center}.canvasstack{position:relative;display:inline-block;line-height:0}.canvasstack canvas{display:block;background:#fff;max-width:100%;max-height:72vh;width:auto;height:auto;touch-action:none}.overlay{position:absolute;inset:0;pointer-events:none;opacity:0}.overlay.show{opacity:.12}.overlay img{width:100%;height:100%;object-fit:fill;display:block}.tip{position:absolute;width:9px;height:9px;border-radius:50%;border:2px solid rgba(110,70,50,.38);background:rgba(255,255,255,.8);transform:translate(-50%,-50%);pointer-events:none;display:none;z-index:4}.status{font-size:12px;color:#756d60;min-height:18px;margin-top:8px}.tiny{font-size:11px;color:#958d7f}.note{margin-top:8px;padding:8px 10px;border-radius:9px;background:#faf7f1;font-size:11px;color:#766f63}.section{font-size:11px;font-weight:700;color:#665e52;margin-top:10px}
+@media(max-width:760px){body{padding:7px}.stage{grid-template-columns:1fr}.refbox{display:grid;grid-template-columns:90px 1fr;gap:9px;align-items:start}.refbox img{width:90px}.canvasbox{min-height:430px}.slider{width:100%;justify-content:space-between}.slider input{flex:1;max-width:210px}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="card">
+    <div class="top"><h1>Ink Auto Trace Lab</h1><span class="tag">EXACT PEN TEST</span></div>
+
+    <div class="controls">
+      <label class="file" for="upload">Choose reference</label>
+      <input id="upload" type="file" accept="image/*" />
+      <button id="analyze" class="primary" disabled>Analyze + Auto Draw</button>
+      <button id="stop" disabled>Stop</button>
+      <button id="reset">Reset</button>
+    </div>
+
+    <div class="section">AUTO TRACE</div>
+    <div class="controls">
+      <div class="slider"><span>Freedom</span><input id="freedom" type="range" min="0" max="3" step="0.25" value="0.75"><span id="freedomVal">0.75</span></div>
+      <div class="slider"><span>Draw speed</span><input id="speed" type="range" min="0.5" max="3" step="0.25" value="1"><span id="speedVal">1×</span></div>
+      <div class="slider"><span>Line sensitivity</span><input id="sensitivity" type="range" min="-45" max="45" step="5" value="0"><span id="sensitivityVal">0</span></div>
+    </div>
+
+    <div class="section">YOUR INK SKETCHBOOK PEN</div>
+    <div class="controls">
+      <div class="slider"><span>Wobble</span><input id="wobbleSlider" type="range" min="0" max="3" value="1" step="0.5"><span id="wobbleVal">1</span></div>
+      <div class="slider"><span>Thickness</span><input id="thicknessSlider" type="range" min="0.5" max="3" value="1" step="0.25"><span id="thicknessVal">1</span></div>
+      <div class="slider"><span>Min</span><input id="minSlider" type="range" min="0.5" max="6" value="1" step="0.5"><span id="minVal">1</span></div>
+      <div class="slider"><span>Max</span><input id="maxSlider" type="range" min="2" max="16" value="8" step="0.5"><span id="maxVal">8</span></div>
+    </div>
+
+    <div class="controls" style="font-size:12px;color:#6c6458">
+      <label><input type="checkbox" id="showTip" checked> show pen tip</label>
+      <label><input type="checkbox" id="showRef"> show hidden reference</label>
+    </div>
+
+    <div class="note">This file uses the Ink Sketchbook pen's real width formula, smoothing, wobble behavior and the same Min / Max / Thickness / Wobble controls. The only new part is synthetic Pencil pressure, because the autonomous hand has no physical Apple Pencil pressure event.</div>
+    <div class="status" id="status">Choose your reference image first.</div>
+    <div class="tiny">Standalone test only. No hand and no recording yet. Your real Ink Sketchbook is not changed.</div>
+  </div>
+
+  <div class="stage">
+    <div class="refbox card"><img id="refPreview" alt="Reference" /><div class="tiny">Reference is used only to build paths. It is not painted into the ink canvas.</div></div>
+    <div class="canvasbox" id="canvasBox">
+      <div class="canvasstack" id="canvasStack">
+        <canvas id="drawCanvas" width="720" height="1080"></canvas>
+        <div class="overlay" id="refOverlay"><img id="refOverlayImg" alt="" /></div>
+        <div class="tip" id="tip"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(() => {
+'use strict';
+const $ = id => document.getElementById(id);
+const upload=$('upload'), analyzeBtn=$('analyze'), stopBtn=$('stop'), resetBtn=$('reset');
+const refPreview=$('refPreview'), refOverlay=$('refOverlay'), refOverlayImg=$('refOverlayImg');
+const canvas=$('drawCanvas'), ctx=canvas.getContext('2d'), canvasStack=$('canvasStack'), tip=$('tip');
+const freedom=$('freedom'), speedCtl=$('speed'), sensitivity=$('sensitivity');
+const wobbleSlider=$('wobbleSlider'), thicknessSlider=$('thicknessSlider'), minSlider=$('minSlider'), maxSlider=$('maxSlider');
+const showTip=$('showTip'), showRef=$('showRef'), statusEl=$('status');
+let sourceImage=null, objectUrl=null, animationToken=0, running=false;
+let canvasBaseCssW=1;
+
+function bindValue(input, out, suffix='') { const sync=()=>$(out).textContent=input.value+suffix; input.addEventListener('input',sync); sync(); }
+bindValue(freedom,'freedomVal'); bindValue(speedCtl,'speedVal','×'); bindValue(sensitivity,'sensitivityVal');
+bindValue(wobbleSlider,'wobbleVal'); bindValue(thicknessSlider,'thicknessVal'); bindValue(minSlider,'minVal'); bindValue(maxSlider,'maxVal');
+
+function setStatus(s){ statusEl.textContent=s; }
+function clearCanvas(){ ctx.save(); ctx.setTransform(1,0,0,1,0,0); ctx.globalCompositeOperation='source-over'; ctx.fillStyle='#fff'; ctx.fillRect(0,0,canvas.width,canvas.height); ctx.restore(); tip.style.display='none'; }
+function fitCanvasCss(){
+  const box=$('canvasBox').getBoundingClientRect();
+  const maxW=Math.max(260,box.width-18), maxH=Math.min(window.innerHeight*0.68,760);
+  const scale=Math.min(maxW/canvas.width,maxH/canvas.height,1);
+  const cssW=Math.max(1,Math.round(canvas.width*scale)), cssH=Math.max(1,Math.round(canvas.height*scale));
+  canvas.style.width=cssW+'px'; canvas.style.height=cssH+'px';
+  canvasStack.style.width=cssW+'px'; canvasStack.style.height=cssH+'px';
+  canvasBaseCssW=cssW;
+}
+function getDisplayDpr(){ const cssW=parseFloat(canvas.style.width)||canvasBaseCssW||1; return canvas.width/cssW; }
+function resetCanvasAspect(){
+  if(!sourceImage)return;
+  const longSide=1400;
+  if(sourceImage.height>=sourceImage.width){ canvas.height=longSide; canvas.width=Math.max(420,Math.round(longSide*sourceImage.width/sourceImage.height)); }
+  else { canvas.width=longSide; canvas.height=Math.max(420,Math.round(longSide*sourceImage.height/sourceImage.width)); }
+  fitCanvasCss(); clearCanvas();
+}
+window.addEventListener('resize',fitCanvasCss);
+
+function loadSource(src){
+  const img=new Image();
+  img.onload=()=>{ sourceImage=img; refPreview.src=src; refPreview.style.display='block'; refOverlayImg.src=src; resetCanvasAspect(); analyzeBtn.disabled=false; setStatus('Reference ready. Tap “Analyze + Auto Draw”.'); };
+  img.onerror=()=>setStatus('Could not load this image.');
+  img.src=src;
+}
+upload.addEventListener('change',e=>{ const f=e.target.files&&e.target.files[0]; if(!f)return; if(objectUrl)URL.revokeObjectURL(objectUrl); objectUrl=URL.createObjectURL(f); loadSource(objectUrl); });
+showRef.addEventListener('change',()=>refOverlay.classList.toggle('show',showRef.checked));
+resetBtn.onclick=()=>{ animationToken++; running=false; stopBtn.disabled=true; analyzeBtn.disabled=!sourceImage; clearCanvas(); setStatus(sourceImage?'Reset. Ready to draw again.':'Choose your reference image first.'); };
+stopBtn.onclick=()=>{ animationToken++; running=false; stopBtn.disabled=true; analyzeBtn.disabled=!sourceImage; tip.style.display='none'; setStatus('Stopped.'); };
+
+/* ---------- reference -> centerline paths ---------- */
+function otsuThreshold(gray){
+  const hist=new Uint32Array(256); for(const v of gray)hist[v]++;
+  const total=gray.length; let sum=0; for(let i=0;i<256;i++)sum+=i*hist[i];
+  let sumB=0,wB=0,maxV=-1,thr=160;
+  for(let t=0;t<256;t++){ wB+=hist[t]; if(!wB)continue; const wF=total-wB; if(!wF)break; sumB+=t*hist[t]; const mB=sumB/wB,mF=(sum-sumB)/wF; const v=wB*wF*(mB-mF)*(mB-mF); if(v>maxV){maxV=v;thr=t;} }
+  return thr;
+}
+function prepareBinary(img){
+  const maxSide=650, scale=Math.min(1,maxSide/Math.max(img.width,img.height));
+  const w=Math.max(100,Math.round(img.width*scale)), h=Math.max(100,Math.round(img.height*scale));
+  const c=document.createElement('canvas'); c.width=w; c.height=h; const x=c.getContext('2d',{willReadFrequently:true});
+  x.fillStyle='#fff'; x.fillRect(0,0,w,h); x.drawImage(img,0,0,w,h);
+  const data=x.getImageData(0,0,w,h).data, gray=new Uint8Array(w*h);
+  for(let i=0,j=0;i<data.length;i+=4,j++) gray[j]=Math.round(.299*data[i]+.587*data[i+1]+.114*data[i+2]);
+  const th=Math.max(40,Math.min(230,otsuThreshold(gray)+Number(sensitivity.value)));
+  const bin=new Uint8Array(w*h); for(let i=0;i<gray.length;i++)bin[i]=gray[i]<th?1:0;
+  return {bin,w,h};
+}
+function thinZS(src,w,h){
+  let a=src.slice(); const mark=new Uint8Array(a.length); let changed=true,iter=0; const idx=(x,y)=>y*w+x;
+  while(changed&&iter<80){ changed=false; iter++;
+    for(let pass=0;pass<2;pass++){ mark.fill(0);
+      for(let y=1;y<h-1;y++)for(let x=1;x<w-1;x++){
+        const i=idx(x,y); if(!a[i])continue;
+        const p2=a[idx(x,y-1)],p3=a[idx(x+1,y-1)],p4=a[idx(x+1,y)],p5=a[idx(x+1,y+1)],p6=a[idx(x,y+1)],p7=a[idx(x-1,y+1)],p8=a[idx(x-1,y)],p9=a[idx(x-1,y-1)];
+        const n=p2+p3+p4+p5+p6+p7+p8+p9; if(n<2||n>6)continue;
+        const s=(p2===0&&p3)+(p3===0&&p4)+(p4===0&&p5)+(p5===0&&p6)+(p6===0&&p7)+(p7===0&&p8)+(p8===0&&p9)+(p9===0&&p2); if(s!==1)continue;
+        if(pass===0){ if(p2*p4*p6!==0||p4*p6*p8!==0)continue; } else { if(p2*p4*p8!==0||p2*p6*p8!==0)continue; }
+        mark[i]=1;
+      }
+      for(let i=0;i<a.length;i++)if(mark[i]){a[i]=0;changed=true;}
+    }
+  }
+  return a;
+}
+const DIRS=[[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1],[0,-1],[1,-1]];
+function buildContinuousPaths(sk,w,h){
+  const inside=(x,y)=>x>=0&&y>=0&&x<w&&y<h, edgeSeen=new Set();
+  const edgeKey=(a,b)=>{const ai=a[1]*w+a[0],bi=b[1]*w+b[0];return ai<bi?ai+':'+bi:bi+':'+ai;};
+  function neighbors(x,y){
+    const out=[];
+    for(const [dx,dy] of DIRS){ const nx=x+dx,ny=y+dy; if(!inside(nx,ny)||!sk[ny*w+nx])continue;
+      if(dx&&dy){ const o1=sk[y*w+(x+dx)]||0,o2=sk[(y+dy)*w+x]||0; if(o1||o2)continue; }
+      out.push([nx,ny]);
+    }
+    return out;
+  }
+  const degree=new Uint8Array(sk.length); for(let y=0;y<h;y++)for(let x=0;x<w;x++)if(sk[y*w+x])degree[y*w+x]=neighbors(x,y).length;
+  const unseen=(a,b)=>!edgeSeen.has(edgeKey(a,b)); const mark=(a,b)=>edgeSeen.add(edgeKey(a,b));
+  function straight(prev,cur,nxt){ const ax=cur[0]-prev[0],ay=cur[1]-prev[1],bx=nxt[0]-cur[0],by=nxt[1]-cur[1],al=Math.hypot(ax,ay)||1,bl=Math.hypot(bx,by)||1; return (ax*bx+ay*by)/(al*bl); }
+  function trace(start,next){
+    const p=[start,next]; mark(start,next); let prev=start,cur=next,guard=0;
+    while(guard++<w*h){ const cand=neighbors(cur[0],cur[1]).filter(n=>unseen(cur,n)); if(!cand.length)break;
+      let best=cand[0],bestScore=-Infinity; for(const n of cand){ let sc=straight(prev,cur,n); if(degree[n[1]*w+n[0]]===1)sc+=.05; if(n[0]===prev[0]&&n[1]===prev[1])sc-=2; if(sc>bestScore){bestScore=sc;best=n;} }
+      mark(cur,best); p.push(best); prev=cur; cur=best;
+    }
+    return p;
+  }
+  const paths=[];
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){ if(!sk[y*w+x]||degree[y*w+x]!==1)continue; const s=[x,y]; for(const n of neighbors(x,y))if(unseen(s,n)){const p=trace(s,n);if(p.length>3)paths.push(p);} }
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){ if(!sk[y*w+x])continue; const s=[x,y]; for(const n of neighbors(x,y))if(unseen(s,n)){const p=trace(s,n);if(p.length>3)paths.push(p);} }
+  return paths;
+}
+function pathLen(p){let s=0;for(let i=1;i<p.length;i++)s+=Math.hypot(p[i][0]-p[i-1][0],p[i][1]-p[i-1][1]);return s;}
+function pointDir(p,start){const n=Math.min(7,p.length-1);if(start){const a=p[0],b=p[n];return[b[0]-a[0],b[1]-a[1]];}const a=p[p.length-1-n],b=p[p.length-1];return[b[0]-a[0],b[1]-a[1]];}
+function cosine(a,b){const al=Math.hypot(...a)||1,bl=Math.hypot(...b)||1;return(a[0]*b[0]+a[1]*b[1])/(al*bl);}
+function mergeNearby(paths){
+  let list=paths.filter(p=>pathLen(p)>3).map(p=>p.slice()),changed=true,passes=0;
+  while(changed&&passes++<4){changed=false;outer:for(let i=0;i<list.length;i++)for(let j=i+1;j<list.length;j++){
+    const A=list[i],B=list[j],cases=[[false,false],[false,true],[true,false],[true,true]];
+    for(const [ar,br] of cases){const a=ar?A[0]:A[A.length-1],b=br?B[0]:B[B.length-1],gap=Math.hypot(a[0]-b[0],a[1]-b[1]);if(gap>5.5)continue;
+      let da=pointDir(A,ar),db=pointDir(B,br);if(ar)da=[-da[0],-da[1]];if(!br)db=[-db[0],-db[1]];if(cosine(da,db)<.35&&gap>2.2)continue;
+      const left=ar?A.slice().reverse():A.slice(),right=br?B.slice().reverse():B.slice();list[i]=left.concat(right);list.splice(j,1);changed=true;break outer;
+    }
+  }}return list;
+}
+function orderPaths(paths){
+  const left=paths.map(p=>({p,len:pathLen(p)})).sort((a,b)=>b.len-a.len),out=[]; let cur=null;
+  while(left.length){let bi=0,rev=false,best=Infinity;const pool=Math.min(left.length,Math.max(12,Math.floor(left.length*.45)));
+    for(let i=0;i<pool;i++){const p=left[i].p,s=p[0],e=p[p.length-1];const ds=cur?Math.hypot(s[0]-cur[0],s[1]-cur[1]):0,de=cur?Math.hypot(e[0]-cur[0],e[1]-cur[1]):0;const score=Math.min(ds,de)-Math.min(120,left[i].len)*.08;if(score<best){best=score;bi=i;rev=de<ds;}}
+    const o=left.splice(bi,1)[0],p=rev?o.p.slice().reverse():o.p;out.push(p);cur=p[p.length-1];
+  }return out;
+}
+function seeded(seed){let x=(seed|0)||1234567;return()=>{x^=x<<13;x^=x>>>17;x^=x<<5;return((x>>>0)%100000)/100000;};}
+function naturalize(path,amp,seed){if(amp<=0)return path.map(p=>[p[0],p[1]]);const rnd=seeded(seed);let ox=0,oy=0;return path.map((p,i)=>{if(i===0||i===path.length-1)return[p[0],p[1]];const tx=(rnd()-.5)*2*amp,ty=(rnd()-.5)*2*amp;ox+=(tx-ox)*.15;oy+=(ty-oy)*.15;return[p[0]+ox,p[1]+oy];});}
+function densify(path,step=1.4){const out=[path[0]];for(let i=1;i<path.length;i++){const a=path[i-1],b=path[i],d=Math.hypot(b[0]-a[0],b[1]-a[1]),n=Math.max(1,Math.ceil(d/step));for(let k=1;k<=n;k++){const t=k/n;out.push([a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t]);}}return out;}
+
+/* ---------- EXACT INK SKETCHBOOK PEN ENGINE ----------
+   The equations below are copied from the real Ink Sketchbook continueStroke:
+   speedFactor = clamp(1 - speed*3)
+   combinedFactor = speedFactor*.65 + pressure*.35
+   width smoothing = .35
+   wobble smoothing = .25
+   controls: Wobble / Thickness / Min / Max
+*/
+let points=[], smoothedWidth=null, smoothedWobbleX=0, smoothedWobbleY=0, lastPressure=0, usingPressure=true;
+const currentColor='#2a2620';
+function beginInkStroke(x,y,t,pressure){
+  points=[{x,y,t}]; smoothedWidth=null; smoothedWobbleX=0; smoothedWobbleY=0; lastPressure=pressure; usingPressure=true;
+}
+function continueInkStroke(p,pressure){
+  const prev=points[points.length-1];
+  const dt=Math.max(1,p.t-prev.t);
+  const dist=Math.hypot(p.x-prev.x,p.y-prev.y);
+  const dpr=getDisplayDpr();
+  if(dist<1.2*dpr)return false;
+
+  const thicknessMult=parseFloat(thicknessSlider.value);
+  const minW=parseFloat(minSlider.value)*dpr*thicknessMult;
+  const maxW=parseFloat(maxSlider.value)*dpr*thicknessMult;
+  const penSpeed=dist/dt;
+  const speedFactor=Math.max(0,Math.min(1,1-penSpeed*3));
+  let targetWidth;
+
+  if(usingPressure){
+    const realPressure=Math.max(0.08,pressure);
+    lastPressure=pressure;
+    const combinedFactor=speedFactor*0.65+realPressure*0.35;
+    targetWidth=minW+combinedFactor*(maxW-minW);
+  }else{
+    targetWidth=minW+speedFactor*(maxW-minW);
+  }
+  smoothedWidth=smoothedWidth===null?targetWidth:smoothedWidth+(targetWidth-smoothedWidth)*0.35;
+
+  let x=p.x,y=p.y;
+  const wobbleIntensity=parseFloat(wobbleSlider.value);
+  if(wobbleIntensity>0){
+    const targetX=(Math.random()-0.5)*wobbleIntensity*dpr;
+    const targetY=(Math.random()-0.5)*wobbleIntensity*dpr;
+    smoothedWobbleX+=(targetX-smoothedWobbleX)*0.25;
+    smoothedWobbleY+=(targetY-smoothedWobbleY)*0.25;
+    x+=smoothedWobbleX; y+=smoothedWobbleY;
+  }
+
+  ctx.globalCompositeOperation='source-over';
+  ctx.strokeStyle=currentColor;
+  ctx.lineJoin='round';
+  ctx.lineCap='round';
+  ctx.lineWidth=smoothedWidth;
+  ctx.beginPath();
+  ctx.moveTo(prev.x,prev.y);
+  ctx.lineTo(x,y);
+  ctx.stroke();
+  ctx.globalCompositeOperation='source-over';
+  points.push({x:p.x,y:p.y,t:p.t});
+  return true;
+}
+
+function tipAt(x,y){
+  if(!showTip.checked){tip.style.display='none';return;}
+  const cssW=parseFloat(canvas.style.width)||1, cssH=parseFloat(canvas.style.height)||1;
+  tip.style.display='block'; tip.style.left=(x/canvas.width*cssW)+'px'; tip.style.top=(y/canvas.height*cssH)+'px';
+}
+const frame=()=>new Promise(r=>requestAnimationFrame(r));
+async function waitFrames(n,token){for(let i=0;i<n;i++){if(token!==animationToken)return false;await frame();}return true;}
+
+async function animate(paths,w,h,token){
+  clearCanvas();
+  const sx=canvas.width/w,sy=canvas.height/h, playback=Number(speedCtl.value), freedomAmp=Number(freedom.value);
+  const rndGlobal=seeded(918273); let total=paths.reduce((s,p)=>s+pathLen(p),0),done=0;
+
+  for(let pi=0;pi<paths.length;pi++){
+    if(token!==animationToken)return;
+    let path=naturalize(paths[pi],freedomAmp,pi*7919+17); path=densify(path,1.25);
+    if(path.length<2)continue;
+
+    const rnd=seeded(pi*104729+31);
+    let pressure=.22+rnd()*.18, pressureTarget=.25+rnd()*.45, pressureCount=10+Math.floor(rnd()*18);
+    let syntheticTime=0;
+    const first={x:path[0][0]*sx,y:path[0][1]*sy};
+    beginInkStroke(first.x,first.y,syntheticTime,pressure);
+    tipAt(first.x,first.y);
+
+    for(let i=1;i<path.length;i++){
+      if(token!==animationToken)return;
+      const prev=path[i-1],cur=path[i];
+      const rawDist=Math.hypot((cur[0]-prev[0])*sx,(cur[1]-prev[1])*sy);
+
+      // Synthetic Apple Pencil pressure: slow, organic changes + lighter stroke ends.
+      if(--pressureCount<=0){ pressureTarget=.16+rnd()*.72; pressureCount=10+Math.floor(rnd()*22); }
+      pressure+=(pressureTarget-pressure)*.10;
+      const phase=i/Math.max(2,path.length-1);
+      const endTaper=Math.min(1,Math.sin(Math.PI*Math.min(.98,Math.max(.02,phase)))*1.55);
+      const syntheticPressure=Math.max(.08,Math.min(1,pressure*(.58+.42*endTaper)));
+
+      // The real pen calculates width from distance/time. Playback speed changes that naturally.
+      const targetPenSpeed=(.105+.055*rndGlobal())*playback; // internal px/ms fed to the real formula
+      syntheticTime+=rawDist/Math.max(.035,targetPenSpeed);
+      const p={x:cur[0]*sx,y:cur[1]*sy,t:syntheticTime};
+      const drew=continueInkStroke(p,syntheticPressure);
+      if(drew){done+=rawDist;tipAt(p.x,p.y);}
+
+      // Keep the animation visible without changing the pen's synthetic event timing.
+      if(i%Math.max(1,Math.round(3*playback))===0){ setStatus('Drawing with your Ink Sketchbook pen… '+Math.min(99,Math.round(done/Math.max(1,total*sx)*100))+'%'); await frame(); }
+    }
+    if(!await waitFrames(Math.max(1,Math.round(2/playback)),token))return;
+  }
+  tip.style.display='none'; running=false; stopBtn.disabled=true; analyzeBtn.disabled=false;
+  setStatus('Done. This pass is using your Ink Sketchbook pen engine. Check the line character first — hand comes after this.');
+}
+
+analyzeBtn.onclick=async()=>{
+  if(!sourceImage){setStatus('Choose a reference first.');return;}
+  animationToken++;const token=animationToken;running=true;analyzeBtn.disabled=true;stopBtn.disabled=false;clearCanvas();
+  try{
+    setStatus('Analyzing reference…');await frame();
+    const prep=prepareBinary(sourceImage);
+    setStatus('Building center lines…');await frame();
+    const sk=thinZS(prep.bin,prep.w,prep.h);
+    setStatus('Reconstructing continuous strokes…');await frame();
+    let paths=buildContinuousPaths(sk,prep.w,prep.h);paths=mergeNearby(paths);paths=orderPaths(paths);
+    if(!paths.length)throw new Error('No drawable lines found. Try Line sensitivity.');
+    setStatus('Found '+paths.length+' strokes. Starting your pen…');await waitFrames(5,token);
+    await animate(paths,prep.w,prep.h,token);
+  }catch(e){running=false;stopBtn.disabled=true;analyzeBtn.disabled=false;tip.style.display='none';setStatus('Could not trace: '+(e&&e.message?e.message:String(e)));}
+};
+
+fitCanvasCss();clearCanvas();
+})();
+</script>
+</body>
+</html>
